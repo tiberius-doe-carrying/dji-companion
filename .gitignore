@@ -1,0 +1,14 @@
+# Local JDK runtime
+java-17/
+
+# Gradle and Android build output
+.gradle/
+**/build/
+
+# Local IDE and machine configuration
+.idea/
+local.properties
+
+# OS files
+.DS_Store
+Thumbs.db
