@@ -1,0 +1,107 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.example.djicompanion"
+4    android:versionCode="1"
+5    android:versionName="0.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:3:5-67
+11-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:3:22-64
+12    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+12-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:4:5-77
+12-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:4:22-74
+13    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+13-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:5:5-87
+13-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:5:22-84
+14    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+14-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:6:5-77
+14-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:6:22-74
+15
+16    <queries>
+16-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:7:5-13:15
+17        <package android:name="com.dji.agflow" />
+17-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:8:9-50
+17-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:8:18-47
+18
+19        <intent>
+19-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:9:9-12:18
+20            <action android:name="android.intent.action.VIEW" />
+20-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:10:13-65
+20-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:10:21-62
+21
+22            <data android:scheme="agworkflow" />
+22-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:11:13-49
+22-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:11:19-46
+23        </intent>
+24    </queries>
+25
+26    <application
+26-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:15:5-46:19
+27        android:allowBackup="false"
+27-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:16:9-36
+28        android:debuggable="true"
+29        android:extractNativeLibs="false"
+30        android:label="T100 伴随助手"
+30-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:17:9-34
+31        android:testOnly="true"
+32        android:theme="@style/AppTheme"
+32-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:18:9-40
+33        android:usesCleartextTraffic="true" >
+33-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:19:9-45
+34        <activity
+34-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:20:9-27:20
+35            android:name="com.example.djicompanion.MainActivity"
+35-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:21:13-41
+36            android:exported="true" >
+36-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:22:13-36
+37            <intent-filter>
+37-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:23:13-26:29
+38                <action android:name="android.intent.action.MAIN" />
+38-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:24:17-69
+38-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:24:25-66
+39
+40                <category android:name="android.intent.category.LAUNCHER" />
+40-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:25:17-77
+40-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:25:27-74
+41            </intent-filter>
+42        </activity>
+43
+44        <service
+44-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:29:9-40:19
+45            android:name="com.example.djicompanion.DjiAccessibilityService"
+45-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:30:13-52
+46            android:exported="false"
+46-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:31:13-37
+47            android:label="T100 伴随助手"
+47-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:32:13-38
+48            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" >
+48-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:33:13-79
+49            <intent-filter>
+49-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:34:13-36:29
+50                <action android:name="android.accessibilityservice.AccessibilityService" />
+50-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:35:17-92
+50-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:35:25-89
+51            </intent-filter>
+52
+53            <meta-data
+53-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:37:13-39:72
+54                android:name="android.accessibilityservice"
+54-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:38:17-60
+55                android:resource="@xml/accessibility_service_config" />
+55-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:39:17-69
+56        </service>
+57        <service
+57-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:42:9-45:56
+58            android:name="com.example.djicompanion.CommandPollService"
+58-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:43:13-47
+59            android:exported="false"
+59-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:44:13-37
+60            android:foregroundServiceType="dataSync" />
+60-->F:\dj\dji-companion\app\src\main\AndroidManifest.xml:45:13-53
+61    </application>
+62
+63</manifest>
