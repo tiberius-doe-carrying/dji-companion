@@ -27,7 +27,6 @@ import java.util.concurrent.Executors;
 public final class CommandPollService extends Service {
     private static final int NOTIFICATION_ID = 1001;
     private static final String CHANNEL_ID = "command_receiver";
-    private static final String DJI_PACKAGE = "com.dji.agflow";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean running;
 
@@ -89,34 +88,50 @@ public final class CommandPollService extends Service {
         boolean success = false;
         String message;
         try {
-            if ("OPEN_DJI".equals(type)) {
-                success = launchDji();
-                message = success ? "已请求启动 DJI SmartFarm" : "DJI SmartFarm 未安装或系统阻止后台启动";
+            String targetPackage = resolvePackage(payload, type);
+            if ("OPEN_DJI".equals(type) || "OPEN_AGRAS".equals(type) || "OPEN_APP".equals(type)) {
+                success = launchDji(targetPackage);
+                message = success ? "已请求启动 " + DjiAccessibilityService.displayName(targetPackage)
+                        : DjiAccessibilityService.displayName(targetPackage) + " 未安装或系统阻止后台启动";
             } else if ("OPEN_DEEPLINK".equals(type)) {
                 String uri = payload.optString("uri", "");
                 if (!uri.startsWith("agworkflow://")) throw new SecurityException("只允许 agworkflow://");
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(uri));
-                intent.setPackage(DJI_PACKAGE);
+                intent.setPackage(targetPackage);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
                 success = true; message = "已请求打开 Deep Link";
             } else if ("INSPECT_PAGE".equals(type)) {
                 DjiAccessibilityService service = DjiAccessibilityService.instance();
                 if (service == null) throw new IllegalStateException("无障碍服务未启用");
-                if (service.inspectCurrentPage().contains("没有可读取的窗口")) {
-                    launchDji();
+                if (service.inspectCurrentPage(targetPackage).contains("没有可读取的窗口")) {
+                    launchDji(targetPackage);
                     sleep(1500);
                 }
-                message = service.inspectCurrentPage(); success = true;
+                message = service.inspectCurrentPage(targetPackage);
+                success = message.startsWith("package=");
             } else if ("CLICK_TEXT".equals(type)) {
                 DjiAccessibilityService service = DjiAccessibilityService.instance();
                 if (service == null) throw new IllegalStateException("无障碍服务未启用");
                 String label = payload.optString("text", "");
-                DjiAccessibilityService.ClickResult result = service.clickSafeLabel(label);
-                if (!result.success && result.message.contains("窗口")) {
-                    launchDji();
-                    result = service.waitAndClickSafeLabel(label, 8000);
-                }
+                DjiAccessibilityService.ClickResult result = service.clickSafeText(targetPackage, label);
+                success = result.success; message = result.message;
+            } else if ("CLICK_ID".equals(type)) {
+                DjiAccessibilityService service = requireAccessibility();
+                DjiAccessibilityService.ClickResult result = service.clickSafeResourceId(targetPackage, payload.optString("resourceId", ""));
+                success = result.success; message = result.message;
+            } else if ("CLICK_RATIO".equals(type)) {
+                DjiAccessibilityService service = requireAccessibility();
+                DjiAccessibilityService.ClickResult result = service.clickSafeRatio(targetPackage,
+                        (float) payload.optDouble("x", -1), (float) payload.optDouble("y", -1), payload.optString("description", ""));
+                success = result.success; message = result.message;
+            } else if ("WAIT_PAGE".equals(type)) {
+                DjiAccessibilityService service = requireAccessibility();
+                DjiAccessibilityService.ClickResult result = service.waitForPage(targetPackage, payload.optString("text", ""),
+                        payload.optString("resourceId", ""), payload.optLong("timeoutMs", 10000));
+                success = result.success; message = result.message;
+            } else if ("BACK".equals(type)) {
+                DjiAccessibilityService.ClickResult result = requireAccessibility().performBack(targetPackage);
                 success = result.success; message = result.message;
             } else {
                 message = "不支持的命令类型：" + type;
@@ -128,8 +143,25 @@ public final class CommandPollService extends Service {
         if (!commandId.isEmpty()) ack(base, token, commandId, success, message);
     }
 
-    private boolean launchDji() {
-        Intent launch = getPackageManager().getLaunchIntentForPackage(DJI_PACKAGE);
+    private DjiAccessibilityService requireAccessibility() {
+        DjiAccessibilityService service = DjiAccessibilityService.instance();
+        if (service == null) throw new IllegalStateException("无障碍服务未启用");
+        return service;
+    }
+
+    private String resolvePackage(JSONObject payload, String type) {
+        String app = payload.optString("app", "").trim().toLowerCase();
+        if ("OPEN_AGRAS".equals(type) || "agras".equals(app) || DjiAccessibilityService.AGRAS_PACKAGE.equals(app)) {
+            return DjiAccessibilityService.AGRAS_PACKAGE;
+        }
+        if (app.isEmpty() || "smartfarm".equals(app) || DjiAccessibilityService.SMARTFARM_PACKAGE.equals(app)) {
+            return DjiAccessibilityService.SMARTFARM_PACKAGE;
+        }
+        throw new IllegalArgumentException("不支持的 app：" + app);
+    }
+
+    private boolean launchDji(String packageName) {
+        Intent launch = getPackageManager().getLaunchIntentForPackage(packageName);
         if (launch == null) return false;
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(launch);

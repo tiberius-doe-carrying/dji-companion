@@ -1,14 +1,13 @@
 # T100 伴随助手
 
-这是一个安装在 DJI SmartFarm 同一 Android 设备上的伴随 App 原型。
+这是一个安装在 DJI SmartFarm / DJI Agras 同一 Android 设备上的伴随 App 原型。
 
 当前能力：
 
-- 检查 `com.dji.agflow` 是否安装；
-- 启动 DJI SmartFarm；
+- 检查并启动 DJI SmartFarm（`com.dji.agflow`）和 DJI Agras（`com.dji.agrasx`）；
 - 测试 `agworkflow://` Deep Link；
 - 通过用户主动授权的无障碍服务读取当前页面控件；
-- 按可见文字执行“应用”“植保机”“飞行记录”等安全导航；
+- 对两个官方 App 执行页面检查、按文字/资源 ID 点击、比例坐标点击、等待页面和返回；
 - 硬编码拦截锁机、解锁、起飞、任务执行、返航、降落、喷洒、播撒等动作。
 - 可配置成熟系统的 HTTPS 地址、设备编号和 Bearer Token；
 - 前台服务轮询 `/api/device/commands/next`，执行后向 `/ack` 回传结果。
@@ -28,7 +27,19 @@ Authorization: Bearer <device-token>
 {"id":"cmd-001","type":"CLICK_TEXT","payload":{"text":"植保机"}}
 ```
 
-当前支持 `OPEN_DJI`、`OPEN_DEEPLINK`、`INSPECT_PAGE`、`CLICK_TEXT`。
+当前支持 `OPEN_DJI`（兼容命令，默认 SmartFarm）、`OPEN_AGRAS`、`OPEN_APP`、`OPEN_DEEPLINK`、
+`INSPECT_PAGE`、`CLICK_TEXT`、`CLICK_ID`、`CLICK_RATIO`、`WAIT_PAGE`、`BACK`。
+
+除 `OPEN_AGRAS` 外，命令可在 `payload.app` 指定 `smartfarm`、`agras` 或对应包名；省略时兼容旧行为，默认 SmartFarm。例如：
+
+```json
+{"type":"CLICK_ID","payload":{"app":"agras","resourceId":"com.dji.agrasx:id/example"}}
+{"type":"CLICK_RATIO","payload":{"app":"agras","x":0.5,"y":0.8,"description":"打开安全导航页"}}
+{"type":"WAIT_PAGE","payload":{"app":"agras","text":"首页","timeoutMs":10000}}
+{"type":"BACK","payload":{"app":"agras"}}
+```
+
+比例坐标范围为 `0..1`，且必须提供 `description`。服务端会检查全部 payload，App 会再次检查命令参数以及坐标命中控件的文字、描述和资源 ID；任一层识别到锁机、解锁、起飞、任务执行、返航、降落、喷洒、播撒等关键词都会拒绝操作。
 
 执行回执：
 
@@ -58,7 +69,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 ## 使用
 
-1. 安装官方 DJI SmartFarm 和本 App；
+1. 安装官方 DJI SmartFarm 和/或 DJI Agras，以及本 App；
 2. 打开本 App，进入系统无障碍设置；
 3. 开启“T100 伴随助手”；
 4. 启动 DJI SmartFarm 并登录；

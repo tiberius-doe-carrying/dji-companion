@@ -20,7 +20,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public final class MainActivity extends Activity {
-    private static final String DJI_PACKAGE = "com.dji.agflow";
     private TextView status;
     private EditText serverUrl;
     private EditText deviceId;
@@ -67,9 +66,11 @@ public final class MainActivity extends Activity {
 
         root.addView(button("1. 打开无障碍设置", v ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))));
-        root.addView(button("2. 启动 DJI SmartFarm", v -> launchDji()));
+        root.addView(button("2. 启动 DJI SmartFarm", v -> launchDji(DjiAccessibilityService.SMARTFARM_PACKAGE)));
+        root.addView(button("启动 DJI Agras", v -> launchDji(DjiAccessibilityService.AGRAS_PACKAGE)));
         root.addView(button("测试 agworkflow:// Deep Link", v -> launchDeepLink()));
-        root.addView(button("读取官方 App 当前页面", v -> inspectPage()));
+        root.addView(button("读取 SmartFarm 当前页面", v -> inspectPage(DjiAccessibilityService.SMARTFARM_PACKAGE)));
+        root.addView(button("读取 Agras 当前页面", v -> inspectPage(DjiAccessibilityService.AGRAS_PACKAGE)));
         TextView navTitle = text("DJI SmartFarm 底部导航", 18, Color.rgb(13, 37, 56));
         navTitle.setPadding(0, dp(20), 0, dp(4));
         root.addView(navTitle);
@@ -92,10 +93,10 @@ public final class MainActivity extends Activity {
         return scroll;
     }
 
-    private void launchDji() {
-        Intent launch = getPackageManager().getLaunchIntentForPackage(DJI_PACKAGE);
+    private void launchDji(String packageName) {
+        Intent launch = getPackageManager().getLaunchIntentForPackage(packageName);
         if (launch == null) {
-            toast("未找到 com.dji.agflow，请确认官方 App 已安装");
+            toast("未找到 " + packageName + "，请确认官方 App 已安装");
             return;
         }
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -105,20 +106,20 @@ public final class MainActivity extends Activity {
     private void launchDeepLink() {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("agworkflow://"));
-            intent.setPackage(DJI_PACKAGE);
+            intent.setPackage(DjiAccessibilityService.SMARTFARM_PACKAGE);
             startActivity(intent);
         } catch (Exception e) {
             toast("Deep Link 启动失败：" + e.getClass().getSimpleName());
         }
     }
 
-    private void inspectPage() {
+    private void inspectPage(String packageName) {
         DjiAccessibilityService service = DjiAccessibilityService.instance();
         if (service == null) {
             toast("无障碍服务未启用");
             return;
         }
-        String report = service.inspectCurrentPage();
+        String report = service.inspectCurrentPage(packageName);
         ((TextView) findViewById(android.R.id.text1)).setText(report);
     }
 
@@ -128,18 +129,19 @@ public final class MainActivity extends Activity {
             toast("请先开启无障碍服务");
             return;
         }
-        DjiAccessibilityService.ClickResult result = service.clickSafeLabel(label);
+        DjiAccessibilityService.ClickResult result = service.clickSafeText(DjiAccessibilityService.SMARTFARM_PACKAGE, label);
         toast(result.message);
     }
 
     private void refreshStatus() {
-        boolean installed;
-        try {
-            getPackageManager().getPackageInfo(DJI_PACKAGE, 0);
-            installed = true;
-        } catch (Exception ignored) { installed = false; }
-        status.setText("DJI SmartFarm：" + (installed ? "已安装" : "未安装")
+        status.setText("DJI SmartFarm：" + (isInstalled(DjiAccessibilityService.SMARTFARM_PACKAGE) ? "已安装" : "未安装")
+                + "\nDJI Agras：" + (isInstalled(DjiAccessibilityService.AGRAS_PACKAGE) ? "已安装" : "未安装")
                 + "\n无障碍服务：" + (isServiceEnabled() ? "已启用" : "未启用"));
+    }
+
+    private boolean isInstalled(String packageName) {
+        try { getPackageManager().getPackageInfo(packageName, 0); return true; }
+        catch (Exception ignored) { return false; }
     }
 
     private EditText input(String hint, String preferenceKey) {
