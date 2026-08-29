@@ -6,4 +6,4 @@
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_description"
     android:notificationTimeout="150"
-    android:packageNames="com.dji.agflow,com.dji.agrasx" />
+    android:packageNames="com.dji.agflow,com.dji.agrasx,com.android.documentsui,com.google.android.documentsui" />

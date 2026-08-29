@@ -20,6 +20,8 @@ import java.util.concurrent.TimeUnit;
 public final class DjiAccessibilityService extends AccessibilityService {
     public static final String SMARTFARM_PACKAGE = "com.dji.agflow";
     public static final String AGRAS_PACKAGE = "com.dji.agrasx";
+    public static final String DOCUMENTS_PACKAGE = "com.android.documentsui";
+    public static final String GOOGLE_DOCUMENTS_PACKAGE = "com.google.android.documentsui";
     private static WeakReference<DjiAccessibilityService> current = new WeakReference<>(null);
     private static final Set<String> BLOCKED = new HashSet<>(Arrays.asList(
             "锁定", "解锁", "确认锁定", "确认解锁", "起飞", "开始任务", "执行任务", "返航", "降落",
@@ -28,7 +30,8 @@ public final class DjiAccessibilityService extends AccessibilityService {
             "emergencystop", "emergency_stop", "spray", "spread", "transfer", "delete"));
 
     public static DjiAccessibilityService instance() { return current.get(); }
-    public static boolean isSupportedPackage(String value) { return SMARTFARM_PACKAGE.equals(value) || AGRAS_PACKAGE.equals(value); }
+    public static boolean isSupportedPackage(String value) { return SMARTFARM_PACKAGE.equals(value) || AGRAS_PACKAGE.equals(value)
+            || DOCUMENTS_PACKAGE.equals(value) || GOOGLE_DOCUMENTS_PACKAGE.equals(value); }
     public static String displayName(String value) { return AGRAS_PACKAGE.equals(value) ? "DJI Agras" : "DJI SmartFarm"; }
     @Override protected void onServiceConnected() { current = new WeakReference<>(this); }
     @Override public void onDestroy() { current.clear(); super.onDestroy(); }

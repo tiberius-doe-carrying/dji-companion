@@ -7,9 +7,13 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.ContentValues;
+import android.content.ContentResolver;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.os.IBinder;
+import android.provider.MediaStore;
 
 import org.json.JSONObject;
 
@@ -17,10 +21,13 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -63,6 +70,7 @@ public final class CommandPollService extends Service {
                 sleep(5000); continue;
             }
             try {
+                try { reportStatus(base, token, deviceId); } catch (Exception ignored) { }
                 String encoded = URLEncoder.encode(deviceId, "UTF-8");
                 HttpURLConnection connection = open(base + "/api/device/commands/next?deviceId=" + encoded, token, "GET");
                 int code = connection.getResponseCode();
@@ -133,6 +141,13 @@ public final class CommandPollService extends Service {
             } else if ("BACK".equals(type)) {
                 DjiAccessibilityService.ClickResult result = requireAccessibility().performBack(targetPackage);
                 success = result.success; message = result.message;
+            } else if ("DOWNLOAD_PRESCRIPTION".equals(type)) {
+                message = downloadPrescription(base, token, payload);
+                success = true;
+                launchDji(DjiAccessibilityService.AGRAS_PACKAGE);
+            } else if ("IMPORT_PRESCRIPTION".equals(type)) {
+                DjiAccessibilityService.ClickResult result = importPrescription(payload);
+                success = result.success; message = result.message;
             } else {
                 message = "不支持的命令类型：" + type;
             }
@@ -169,6 +184,94 @@ public final class CommandPollService extends Service {
         return true;
     }
 
+    private String downloadPrescription(String base, String token, JSONObject payload) throws Exception {
+        String id = payload.optString("prescriptionId", "").trim();
+        String fileName = payload.optString("fileName", "").trim();
+        String expectedHash = payload.optString("sha256", "").trim().toLowerCase();
+        if (id.isEmpty() || fileName.isEmpty() || expectedHash.length() != 64 || fileName.contains("/") || fileName.contains("\\")) {
+            throw new SecurityException("处方图下载参数无效");
+        }
+        HttpURLConnection connection = open(base + "/api/device/prescriptions/" + URLEncoder.encode(id, "UTF-8"), token, "GET");
+        if (connection.getResponseCode() != 200) throw new IllegalStateException("处方图下载 HTTP " + connection.getResponseCode());
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        Uri destination = null;
+        File legacyFile = null;
+        OutputStream output;
+        ContentResolver resolver = getContentResolver();
+        if (Build.VERSION.SDK_INT >= 29) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream");
+            values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/DJI-Prescriptions");
+            values.put(MediaStore.Downloads.IS_PENDING, 1);
+            destination = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (destination == null) throw new IllegalStateException("无法创建公共下载文件");
+            output = resolver.openOutputStream(destination, "w");
+        } else {
+            File directory = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "DJI-Prescriptions");
+            if (!directory.exists() && !directory.mkdirs()) throw new IllegalStateException("无法创建下载目录");
+            legacyFile = new File(directory, fileName);
+            output = new FileOutputStream(legacyFile);
+        }
+        if (output == null) throw new IllegalStateException("无法打开处方图目标文件");
+        try (InputStream input = connection.getInputStream(); OutputStream target = output) {
+            byte[] buffer = new byte[32 * 1024]; int count;
+            while ((count = input.read(buffer)) != -1) { target.write(buffer, 0, count); digest.update(buffer, 0, count); }
+        } catch (Exception error) {
+            if (destination != null) resolver.delete(destination, null, null);
+            if (legacyFile != null) legacyFile.delete();
+            throw error;
+        } finally { connection.disconnect(); }
+        String actualHash = toHex(digest.digest());
+        if (!expectedHash.equals(actualHash)) {
+            if (destination != null) resolver.delete(destination, null, null);
+            if (legacyFile != null) legacyFile.delete();
+            throw new SecurityException("处方图 SHA-256 校验失败");
+        }
+        if (Build.VERSION.SDK_INT >= 29) {
+            ContentValues ready = new ContentValues(); ready.put(MediaStore.Downloads.IS_PENDING, 0);
+            resolver.update(destination, ready, null, null);
+            return "处方图已保存到 Download/DJI-Prescriptions/" + fileName + "；已启动 DJI Agras，请通过接口读取导入页面";
+        }
+        return "处方图已保存到伴随 App 下载目录：" + legacyFile.getAbsolutePath() + "；Android 10 以下需手动复制到 Agras 可见目录";
+    }
+
+    private DjiAccessibilityService.ClickResult importPrescription(JSONObject payload) {
+        DjiAccessibilityService service = requireAccessibility();
+        String fileName = payload.optString("fileName", "").trim();
+        String entryText = payload.optString("entryText", "导入").trim();
+        long timeout = Math.max(1000, Math.min(payload.optLong("timeoutMs", 15000), 60000));
+        if (fileName.isEmpty() || fileName.contains("/") || fileName.contains("\\")) {
+            return new DjiAccessibilityService.ClickResult(false, "处方图文件名无效");
+        }
+        DjiAccessibilityService.ClickResult step = service.clickSafeText(DjiAccessibilityService.AGRAS_PACKAGE, entryText);
+        if (!step.success) return new DjiAccessibilityService.ClickResult(false, "请先进入 Agras 处方图导入页面：" + step.message);
+        step = service.waitForPage(null, fileName, "", timeout);
+        if (!step.success) return new DjiAccessibilityService.ClickResult(false, "文件选择器未找到：" + fileName);
+        step = service.clickSafeText(null, fileName);
+        if (!step.success) return step;
+
+        DjiAccessibilityService.ClickResult settings = service.waitForPage(DjiAccessibilityService.AGRAS_PACKAGE, "处方图导入设置", "", 8000);
+        if (!settings.success) return new DjiAccessibilityService.ClickResult(true, "已选择处方图文件，官方 App 未显示导入设置，请读取当前页面确认结果");
+        String sourceId = "other".equalsIgnoreCase(payload.optString("source", "dji")) ? "unitOther" : "unitDJI";
+        String unitId = "ha".equalsIgnoreCase(payload.optString("unit", "mu")) ? "unitHa" : "unitMu";
+        String sampleId = "average".equalsIgnoreCase(payload.optString("resample", "max")) ? "averageResampleTypeItem" : "maxResampleTypeItem";
+        step = service.clickSafeResourceId(DjiAccessibilityService.AGRAS_PACKAGE, "com.dji.agrasx:id/" + sourceId);
+        if (!step.success) return step;
+        step = service.clickSafeResourceId(DjiAccessibilityService.AGRAS_PACKAGE, "com.dji.agrasx:id/" + unitId);
+        if (!step.success) return step;
+        step = service.clickSafeResourceId(DjiAccessibilityService.AGRAS_PACKAGE, "com.dji.agrasx:id/" + sampleId);
+        if (!step.success) return step;
+        step = service.clickSafeResourceId(DjiAccessibilityService.AGRAS_PACKAGE, "com.dji.agrasx:id/btnConfirm");
+        return step.success ? new DjiAccessibilityService.ClickResult(true, "处方图导入已确认；未执行航线上传或任务操作") : step;
+    }
+
+    private String toHex(byte[] bytes) {
+        StringBuilder out = new StringBuilder(bytes.length * 2);
+        for (byte value : bytes) out.append(String.format(java.util.Locale.US, "%02x", value & 0xff));
+        return out.toString();
+    }
+
     private void ack(String base, String token, String id, boolean success, String message) {
         HttpURLConnection connection = null;
         try {
@@ -185,6 +288,25 @@ public final class CommandPollService extends Service {
         } finally {
             if (connection != null) connection.disconnect();
         }
+    }
+
+    private void reportStatus(String base, String token, String deviceId) throws Exception {
+        HttpURLConnection connection = open(base + "/api/device/status", token, "POST");
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        JSONObject body = new JSONObject()
+                .put("deviceId", deviceId)
+                .put("foregroundService", true)
+                .put("accessibilityEnabled", DjiAccessibilityService.instance() != null)
+                .put("agrasInstalled", getPackageManager().getLaunchIntentForPackage(DjiAccessibilityService.AGRAS_PACKAGE) != null)
+                .put("companionVersion", "0.1.0")
+                .put("androidVersion", Build.VERSION.RELEASE);
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        int code = connection.getResponseCode();
+        connection.disconnect();
+        if (code != 200) throw new IllegalStateException("状态上报 HTTP " + code);
     }
 
     private HttpURLConnection open(String target, String token, String method) throws Exception {

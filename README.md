@@ -11,6 +11,7 @@
 - 硬编码拦截锁机、解锁、起飞、任务执行、返航、降落、喷洒、播撒等动作。
 - 可配置成熟系统的 HTTPS 地址、设备编号和 Bearer Token；
 - 前台服务轮询 `/api/device/commands/next`，执行后向 `/ack` 回传结果。
+- 前台服务向 `/api/device/status` 上报设备心跳、无障碍启用状态和 DJI Agras 安装状态，供网页控制台显示在线情况。
 
 ## 命令协议
 
@@ -40,6 +41,8 @@ Authorization: Bearer <device-token>
 ```
 
 比例坐标范围为 `0..1`，且必须提供 `description`。服务端会检查全部 payload，App 会再次检查命令参数以及坐标命中控件的文字、描述和资源 ID；任一层识别到锁机、解锁、起飞、任务执行、返航、降落、喷洒、播撒等关键词都会拒绝操作。
+
+服务端上传处方图后会下发内部命令 `DOWNLOAD_PRESCRIPTION`。伴随 App 校验文件名和 SHA-256，在 Android 10 及以上保存到公共目录 `Download/DJI-Prescriptions`，并启动 DJI Agras。之后可通过 `INSPECT_PAGE`、`CLICK_TEXT`、`CLICK_ID` 和 `WAIT_PAGE` 控制官方导入页面；不会自动进入任务执行阶段。
 
 执行回执：
 

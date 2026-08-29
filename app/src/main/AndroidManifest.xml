@@ -8,6 +8,8 @@
     <queries>
         <package android:name="com.dji.agflow" />
         <package android:name="com.dji.agrasx" />
+        <package android:name="com.android.documentsui" />
+        <package android:name="com.google.android.documentsui" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="agworkflow" />
