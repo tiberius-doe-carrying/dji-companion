@@ -36,9 +36,15 @@ public final class CommandPollService extends Service {
     private static final String CHANNEL_ID = "command_receiver";
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean running;
+    private static volatile boolean active;
+
+    public static boolean isRunning() {
+        return active;
+    }
 
     @Override public void onCreate() {
         super.onCreate();
+        active = true;
         createChannel();
         startForeground(NOTIFICATION_ID, notification("等待成熟系统命令"));
     }
@@ -53,6 +59,7 @@ public final class CommandPollService extends Service {
 
     @Override public void onDestroy() {
         running = false;
+        active = false;
         worker.shutdownNow();
         super.onDestroy();
     }
