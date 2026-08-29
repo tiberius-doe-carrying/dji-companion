@@ -154,9 +154,10 @@ public final class CommandPollService extends Service {
         if ("OPEN_AGRAS".equals(type) || "agras".equals(app) || DjiAccessibilityService.AGRAS_PACKAGE.equals(app)) {
             return DjiAccessibilityService.AGRAS_PACKAGE;
         }
-        if (app.isEmpty() || "smartfarm".equals(app) || DjiAccessibilityService.SMARTFARM_PACKAGE.equals(app)) {
+        if ("smartfarm".equals(app) || DjiAccessibilityService.SMARTFARM_PACKAGE.equals(app)) {
             return DjiAccessibilityService.SMARTFARM_PACKAGE;
         }
+        if (app.isEmpty()) return DjiAccessibilityService.AGRAS_PACKAGE;
         throw new IllegalArgumentException("不支持的 app：" + app);
     }
 

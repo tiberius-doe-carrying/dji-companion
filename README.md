@@ -27,10 +27,10 @@ Authorization: Bearer <device-token>
 {"id":"cmd-001","type":"CLICK_TEXT","payload":{"text":"植保机"}}
 ```
 
-当前支持 `OPEN_DJI`（兼容命令，默认 SmartFarm）、`OPEN_AGRAS`、`OPEN_APP`、`OPEN_DEEPLINK`、
+当前支持 `OPEN_DJI`（启动当前遥控器的 Agras）、`OPEN_AGRAS`、`OPEN_APP`、`OPEN_DEEPLINK`、
 `INSPECT_PAGE`、`CLICK_TEXT`、`CLICK_ID`、`CLICK_RATIO`、`WAIT_PAGE`、`BACK`。
 
-除 `OPEN_AGRAS` 外，命令可在 `payload.app` 指定 `smartfarm`、`agras` 或对应包名；省略时兼容旧行为，默认 SmartFarm。例如：
+命令可在 `payload.app` 指定 `agras`、`smartfarm` 或对应包名；省略时默认当前遥控器的 Agras。例如：
 
 ```json
 {"type":"CLICK_ID","payload":{"app":"agras","resourceId":"com.dji.agrasx:id/example"}}

@@ -71,9 +71,6 @@ public final class DjiAccessibilityService extends AccessibilityService {
         if (error != null) { root.recycle(); return fail(error); }
         List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByText(label);
         ClickResult result = clickMatches(matches, "文字：\"" + label + "\""); recycle(matches);
-        if (!result.success && SMARTFARM_PACKAGE.equals(expectedPackage) && isBottomNavigation(label)) {
-            Rect bounds = new Rect(); root.getBoundsInScreen(bounds); root.recycle(); return clickBottomNavigation(label, bounds);
-        }
         root.recycle(); return result;
     }
 
@@ -168,13 +165,6 @@ public final class DjiAccessibilityService extends AccessibilityService {
             if (node.getViewIdResourceName() != null) value.append(node.getViewIdResourceName()).append(' ');
         }
         return value.toString();
-    }
-
-    private boolean isBottomNavigation(String label) { return "数据".equals(label) || "作业".equals(label) || "设备".equals(label) || "我的".equals(label); }
-    private ClickResult clickBottomNavigation(String label, Rect window) {
-        if (window.width() <= 0 || window.height() <= 0) return fail("无法取得 DJI SmartFarm 窗口尺寸");
-        float fraction = "数据".equals(label) ? .125f : "作业".equals(label) ? .375f : "设备".equals(label) ? .625f : .875f;
-        return dispatchTap(window.left + window.width() * fraction, window.top + window.height() * .94f, "已通过底部导航位置点击：\"" + label + "\"");
     }
 
     private ClickResult dispatchTap(float x, float y, String successMessage) {

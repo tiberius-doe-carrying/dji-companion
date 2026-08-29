@@ -6,6 +6,9 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
@@ -37,59 +40,52 @@ public final class MainActivity extends Activity {
 
     private View buildUi() {
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(Color.rgb(243, 247, 249));
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(24), dp(20), dp(24));
+        root.setPadding(dp(18), dp(28), dp(18), dp(28));
         scroll.addView(root);
 
-        TextView title = text("T100 伴随助手", 26, Color.rgb(13, 37, 56));
+        TextView title = text("DJI 遥控器伴随助手", 27, Color.rgb(16, 45, 62));
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         root.addView(title);
-        TextView note = text("原型仅做页面识别和安全导航。锁机、解锁、起飞、任务执行、返航等动作必须在官方 App 内由操作员确认。", 15, Color.DKGRAY);
-        note.setPadding(0, dp(10), 0, dp(16));
+        TextView note = text("连接当前遥控器上的 DJI Agras，提供页面识别与安全导航测试。飞行和作业操作始终由操作员在官方 App 内确认。", 14, Color.rgb(78, 99, 111));
+        note.setLineSpacing(0, 1.15f);
+        note.setPadding(0, dp(8), 0, dp(18));
         root.addView(note);
 
         status = text("正在检查…", 14, Color.rgb(30, 80, 110));
-        status.setPadding(dp(12), dp(12), dp(12), dp(12));
-        status.setBackgroundColor(Color.rgb(232, 244, 250));
+        status.setPadding(dp(16), dp(14), dp(16), dp(14));
+        status.setBackground(cardBackground(Color.rgb(232, 245, 249)));
         root.addView(status, matchWrap());
 
-        TextView remoteTitle = text("成熟系统接入", 18, Color.rgb(13, 37, 56));
-        remoteTitle.setPadding(0, dp(20), 0, dp(6));
-        root.addView(remoteTitle);
+        LinearLayout remoteCard = card("接口控制", "功能操作由服务端命令接口下发");
+        root.addView(remoteCard);
         serverUrl = input("服务器地址，例如 https://example.com", "server_url");
         deviceId = input("设备编号，例如 rc-t100-001", "device_id");
         accessToken = input("设备访问令牌", "access_token");
-        root.addView(serverUrl); root.addView(deviceId); root.addView(accessToken);
-        root.addView(button("保存系统服务配置", v -> saveCommandConfig(true)));
-        root.addView(button("启动命令接收", v -> startCommandService()));
-        root.addView(button("停止命令接收", v -> stopService(new Intent(this, CommandPollService.class))));
+        remoteCard.addView(serverUrl); remoteCard.addView(deviceId); remoteCard.addView(accessToken);
+        remoteCard.addView(button("保存配置", v -> saveCommandConfig(true), false));
+        remoteCard.addView(button("启动接口命令接收", v -> startCommandService(), true));
+        remoteCard.addView(button("停止接口命令接收", v -> stopService(new Intent(this, CommandPollService.class)), false));
 
-        root.addView(button("1. 打开无障碍设置", v ->
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))));
-        root.addView(button("2. 启动 DJI SmartFarm", v -> launchDji(DjiAccessibilityService.SMARTFARM_PACKAGE)));
-        root.addView(button("启动 DJI Agras", v -> launchDji(DjiAccessibilityService.AGRAS_PACKAGE)));
-        root.addView(button("测试 agworkflow:// Deep Link", v -> launchDeepLink()));
-        root.addView(button("读取 SmartFarm 当前页面", v -> inspectPage(DjiAccessibilityService.SMARTFARM_PACKAGE)));
-        root.addView(button("读取 Agras 当前页面", v -> inspectPage(DjiAccessibilityService.AGRAS_PACKAGE)));
-        TextView navTitle = text("DJI SmartFarm 底部导航", 18, Color.rgb(13, 37, 56));
-        navTitle.setPadding(0, dp(20), 0, dp(4));
-        root.addView(navTitle);
-        root.addView(button("打开数据页", v -> safeClick("数据")));
-        root.addView(button("打开作业页", v -> safeClick("作业")));
-        root.addView(button("打开设备页", v -> safeClick("设备")));
-        root.addView(button("打开我的页", v -> safeClick("我的")));
+        LinearLayout testCard = card("本机测试", "仅保留接入检查，不在这里提供业务导航按钮");
+        root.addView(testCard);
+        testCard.addView(button("打开无障碍设置", v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)), false));
+        testCard.addView(button("启动当前 DJI Agras", v -> launchDji(DjiAccessibilityService.AGRAS_PACKAGE), true));
+        testCard.addView(button("读取 Agras 当前页面", v -> inspectPage(DjiAccessibilityService.AGRAS_PACKAGE), false));
 
-        TextView outputTitle = text("页面检查结果", 18, Color.rgb(13, 37, 56));
-        outputTitle.setPadding(0, dp(20), 0, dp(8));
-        root.addView(outputTitle);
+        LinearLayout outputCard = card("页面检查结果", "无障碍控件的文字、描述和资源 ID");
+        root.addView(outputCard);
         TextView output = new TextView(this);
         output.setId(android.R.id.text1);
         output.setTextIsSelectable(true);
         output.setTextSize(12);
-        output.setText("开启无障碍服务并打开官方 App 后，点击读取官方 App 当前页面。");
+        output.setTextColor(Color.rgb(42, 61, 71));
+        output.setText("开启无障碍服务并打开 DJI Agras 后，点击“读取 Agras 当前页面”。");
         output.setPadding(dp(12), dp(12), dp(12), dp(12));
-        output.setBackgroundColor(Color.rgb(245, 245, 245));
-        root.addView(output, matchWrap());
+        output.setBackground(cardBackground(Color.rgb(246, 248, 249)));
+        outputCard.addView(output, matchWrap());
         return scroll;
     }
 
@@ -123,19 +119,8 @@ public final class MainActivity extends Activity {
         ((TextView) findViewById(android.R.id.text1)).setText(report);
     }
 
-    private void safeClick(String label) {
-        DjiAccessibilityService service = DjiAccessibilityService.instance();
-        if (service == null) {
-            toast("请先开启无障碍服务");
-            return;
-        }
-        DjiAccessibilityService.ClickResult result = service.clickSafeText(DjiAccessibilityService.SMARTFARM_PACKAGE, label);
-        toast(result.message);
-    }
-
     private void refreshStatus() {
-        status.setText("DJI SmartFarm：" + (isInstalled(DjiAccessibilityService.SMARTFARM_PACKAGE) ? "已安装" : "未安装")
-                + "\nDJI Agras：" + (isInstalled(DjiAccessibilityService.AGRAS_PACKAGE) ? "已安装" : "未安装")
+        status.setText("当前官方 App · DJI Agras：" + (isInstalled(DjiAccessibilityService.AGRAS_PACKAGE) ? "已安装" : "未安装")
                 + "\n无障碍服务：" + (isServiceEnabled() ? "已启用" : "未启用"));
     }
 
@@ -226,10 +211,28 @@ public final class MainActivity extends Activity {
         return false;
     }
 
-    private Button button(String label, View.OnClickListener listener) {
+    private LinearLayout card(String title, String subtitle) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+        card.setBackground(cardBackground(Color.WHITE));
+        LinearLayout.LayoutParams params = matchWrap(); params.topMargin = dp(16); card.setLayoutParams(params);
+        TextView heading = text(title, 18, Color.rgb(16, 45, 62)); heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD); card.addView(heading);
+        TextView hint = text(subtitle, 13, Color.rgb(104, 121, 130)); hint.setPadding(0, dp(4), 0, dp(8)); card.addView(hint);
+        return card;
+    }
+
+    private GradientDrawable cardBackground(int color) {
+        GradientDrawable drawable = new GradientDrawable(); drawable.setColor(color); drawable.setCornerRadius(dp(14));
+        drawable.setStroke(dp(1), Color.rgb(222, 231, 235)); return drawable;
+    }
+
+    private Button button(String label, View.OnClickListener listener, boolean primary) {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
+        b.setTextColor(primary ? Color.WHITE : Color.rgb(23, 91, 126));
+        b.setBackgroundTintList(ColorStateList.valueOf(primary ? Color.rgb(24, 112, 153) : Color.rgb(235, 244, 248)));
         b.setOnClickListener(listener);
         LinearLayout.LayoutParams p = matchWrap();
         p.topMargin = dp(10);
