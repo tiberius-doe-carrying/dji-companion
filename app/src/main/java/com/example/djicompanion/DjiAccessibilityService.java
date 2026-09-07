@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 
 public final class DjiAccessibilityService extends AccessibilityService {
     public static final String SMARTFARM_PACKAGE = "com.dji.agflow";
@@ -77,6 +79,91 @@ public final class DjiAccessibilityService extends AccessibilityService {
         root.recycle(); return result;
     }
 
+    public ClickResult clickSafeExactText(String expectedPackage, String label) {
+        if (isSensitive(label)) return blocked(label);
+        if (empty(label)) return fail("text 不能为空");
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return fail("没有可操作窗口");
+        String error = validateRoot(root, expectedPackage);
+        if (error != null) { root.recycle(); return fail(error); }
+        List<AccessibilityNodeInfo> candidates = root.findAccessibilityNodeInfosByText(label);
+        List<AccessibilityNodeInfo> exact = new ArrayList<>();
+        for (AccessibilityNodeInfo candidate : candidates) {
+            CharSequence text = candidate.getText();
+            if (hasValue(text) && label.equals(text.toString().trim())) exact.add(candidate);
+        }
+        ClickResult result = clickMatches(exact, "文字：\"" + label + "\"");
+        recycle(candidates);
+        root.recycle();
+        return result;
+    }
+
+    public ClickResult clickListItemByExactText(String expectedPackage, String resourceId, String label) {
+        if (isSensitive(label) || isSensitive(resourceId)) return blocked(label + " " + resourceId);
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return fail("没有可操作窗口");
+        String error = validateRoot(root, expectedPackage);
+        if (error != null) { root.recycle(); return fail(error); }
+        List<AccessibilityNodeInfo> candidates = root.findAccessibilityNodeInfosByViewId(resourceId);
+        List<AccessibilityNodeInfo> exact = new ArrayList<>();
+        for (AccessibilityNodeInfo candidate : candidates) {
+            CharSequence text = candidate.getText();
+            if (hasValue(text) && label.equals(text.toString().trim())) exact.add(candidate);
+        }
+        ClickResult result = clickMatches(exact, "列表项：\"" + label + "\"");
+        recycle(candidates);
+        root.recycle();
+        return result;
+    }
+
+    public ClickResult clickDescendantForExactText(String expectedPackage, String textResourceId,
+                                                    String label, String targetResourceId) {
+        if (isSensitive(label) || isSensitive(textResourceId) || isSensitive(targetResourceId)) {
+            return blocked(label + " " + targetResourceId);
+        }
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return fail("没有可操作窗口");
+        String error = validateRoot(root, expectedPackage);
+        if (error != null) { root.recycle(); return fail(error); }
+        List<AccessibilityNodeInfo> names = root.findAccessibilityNodeInfosByViewId(textResourceId);
+        for (AccessibilityNodeInfo name : names) {
+            CharSequence text = name.getText();
+            if (!hasValue(text) || !label.equals(text.toString().trim())) continue;
+            AccessibilityNodeInfo row = name;
+            for (int depth = 0; depth < 6 && row != null; depth++) {
+                List<AccessibilityNodeInfo> targets = row.findAccessibilityNodeInfosByViewId(targetResourceId);
+                if (!targets.isEmpty()) {
+                    AccessibilityNodeInfo target = targets.get(0);
+                    Rect bounds = new Rect();
+                    target.getBoundsInScreen(bounds);
+                    recycle(targets);
+                    recycle(names);
+                    root.recycle();
+                    if (bounds.isEmpty()) return fail("目标控件不可见：" + label);
+                    return dispatchTap(bounds.centerX(), bounds.centerY(), "已点击作业右侧进入箭头：\"" + label + "\"");
+                }
+                recycle(targets);
+                row = row.getParent();
+            }
+        }
+        recycle(names);
+        root.recycle();
+        return fail("未找到作业右侧进入箭头：\"" + label + "\"");
+    }
+
+    public boolean currentPageContains(String expectedPackage, String text) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null || validateRoot(root, expectedPackage) != null) {
+            if (root != null) root.recycle();
+            return false;
+        }
+        List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByText(text);
+        boolean found = !matches.isEmpty();
+        recycle(matches);
+        root.recycle();
+        return found;
+    }
+
     public ClickResult clickSafeResourceId(String expectedPackage, String resourceId) {
         if (isSensitive(resourceId)) return blocked(resourceId);
         if (empty(resourceId)) return fail("resourceId 不能为空");
@@ -123,6 +210,47 @@ public final class DjiAccessibilityService extends AccessibilityService {
         String error = validateRoot(root, expectedPackage); root.recycle();
         if (error != null) return fail(error);
         return performGlobalAction(GLOBAL_ACTION_BACK) ? new ClickResult(true, "已执行返回") : fail("返回操作失败");
+    }
+
+    public List<String> collectListTexts(String expectedPackage, String resourceId, String listResourceId) {
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        int stagnantPages = 0;
+        for (int page = 0; page < 80; page++) {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null || validateRoot(root, expectedPackage) != null) {
+                if (root != null) root.recycle();
+                break;
+            }
+            int before = values.size();
+            List<AccessibilityNodeInfo> names = root.findAccessibilityNodeInfosByViewId(resourceId);
+            for (AccessibilityNodeInfo node : names) {
+                CharSequence text = node.getText();
+                if (hasValue(text)) values.add(text.toString().trim());
+            }
+            recycle(names);
+            stagnantPages = values.size() == before ? stagnantPages + 1 : 0;
+            List<AccessibilityNodeInfo> footers = root.findAccessibilityNodeInfosByViewId(
+                    "com.dji.agrasx:id/footerTv");
+            boolean atEnd = false;
+            for (AccessibilityNodeInfo footer : footers) {
+                CharSequence text = footer.getText();
+                if (hasValue(text) && text.toString().contains("没有更多数据")) atEnd = true;
+            }
+            recycle(footers);
+            List<AccessibilityNodeInfo> lists = root.findAccessibilityNodeInfosByViewId(listResourceId);
+            boolean moved = false;
+            for (AccessibilityNodeInfo list : lists) {
+                if (!atEnd && list.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) {
+                    moved = true;
+                    break;
+                }
+            }
+            recycle(lists);
+            root.recycle();
+            if (atEnd || !moved || stagnantPages >= 2) break;
+            try { Thread.sleep(350); } catch (InterruptedException error) { Thread.currentThread().interrupt(); break; }
+        }
+        return new ArrayList<>(values);
     }
 
     private ClickResult clickMatches(List<AccessibilityNodeInfo> matches, String description) {
