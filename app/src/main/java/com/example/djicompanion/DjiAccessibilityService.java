@@ -177,6 +177,35 @@ public final class DjiAccessibilityService extends AccessibilityService {
         recycle(matches); root.recycle(); return result;
     }
 
+    /**
+     * 某些 DJI 自定义控件会出现在无障碍树中，但不响应 ACTION_CLICK。
+     * 此方法只对通过资源 ID 精确找到的安全控件，点击它在屏幕上的中心位置。
+     */
+    public ClickResult tapSafeResourceIdCenter(String expectedPackage, String resourceId) {
+        if (isSensitive(resourceId)) return blocked(resourceId);
+        if (empty(resourceId)) return fail("resourceId 不能为空");
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return fail("没有可操作窗口");
+        String error = validateRoot(root, expectedPackage);
+        if (error != null) { root.recycle(); return fail(error); }
+        List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByViewId(resourceId);
+        for (AccessibilityNodeInfo match : matches) {
+            Rect bounds = new Rect();
+            match.getBoundsInScreen(bounds);
+            String metadata = nodeMetadata(match);
+            if (isSensitive(metadata)) {
+                recycle(matches); root.recycle(); return blocked(metadata);
+            }
+            if (!bounds.isEmpty()) {
+                int x = bounds.centerX(), y = bounds.centerY();
+                recycle(matches); root.recycle();
+                return dispatchTap(x, y, "已按资源 ID 控件中心点击：\"" + resourceId + "\"");
+            }
+        }
+        recycle(matches); root.recycle();
+        return fail("未找到可见控件（资源 ID：\"" + resourceId + "\"）");
+    }
+
     public ClickResult clickSafeRatio(String expectedPackage, float xRatio, float yRatio, String description) {
         if (xRatio < 0 || xRatio > 1 || yRatio < 0 || yRatio > 1) return fail("比例坐标必须在 0 到 1 之间");
         if (isSensitive(description)) return blocked(description);

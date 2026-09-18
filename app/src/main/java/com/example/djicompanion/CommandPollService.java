@@ -200,13 +200,51 @@ public final class  CommandPollService extends Service {
         DjiAccessibilityService service = requireAccessibility();
         launchDji(DjiAccessibilityService.AGRAS_PACKAGE);
         sleep(1200);
-        DjiAccessibilityService.ClickResult step = service.clickSafeResourceId(
-                DjiAccessibilityService.AGRAS_PACKAGE, "com.dji.agrasx:id/viewSettingImg");
-        if (!step.success) return new DjiAccessibilityService.ClickResult(false, "无法打开 Agras 设置页：" + step.message);
+
+        // Agras 会恢复上次停留的页面。若已在 RTK 状态页，直接读取，避免重复导航。
+        if (service.currentPageContains(DjiAccessibilityService.AGRAS_PACKAGE, "RTK 移动站状态")) {
+            return inspectAgrasRtkPage(service);
+        }
+
+        final String settingId = "com.dji.agrasx:id/viewSettingImg";
+        DjiAccessibilityService.ClickResult step = null;
+        // 从作业、文件中心等子页面逐级返回，最多五次；找到地图页的设置图标即停止。
+        for (int depth = 0; depth <= 5; depth++) {
+            // 只有同时出现多个首页特征时才点击“开始”；这里的“开始”仅用于进入地图，
+            // 避免在任务弹窗或飞行页面误触同名按钮。
+            boolean agrasHome = service.currentPageContains(DjiAccessibilityService.AGRAS_PACKAGE, "日志上传")
+                    && service.currentPageContains(DjiAccessibilityService.AGRAS_PACKAGE, "设备管理")
+                    && service.currentPageContains(DjiAccessibilityService.AGRAS_PACKAGE, "飞行器连接");
+            if (agrasHome && service.currentPageContains(DjiAccessibilityService.AGRAS_PACKAGE, "开始")) {
+                DjiAccessibilityService.ClickResult enterMap = service.clickSafeExactText(
+                        DjiAccessibilityService.AGRAS_PACKAGE, "开始");
+                if (enterMap.success) service.waitForPage(
+                        DjiAccessibilityService.AGRAS_PACKAGE, "", settingId, 5000);
+            }
+            step = service.clickSafeResourceId(DjiAccessibilityService.AGRAS_PACKAGE, settingId);
+            if (!step.success) {
+                // DJIStateImageView 在部分版本不响应无障碍 ACTION_CLICK，改点其可见中心。
+                step = service.tapSafeResourceIdCenter(DjiAccessibilityService.AGRAS_PACKAGE, settingId);
+            }
+            if (step.success) break;
+            if (depth == 5) break;
+            DjiAccessibilityService.ClickResult back = service.performBack(DjiAccessibilityService.AGRAS_PACKAGE);
+            if (!back.success) break;
+            sleep(500);
+        }
+        if (step == null || !step.success) {
+            String page = service.inspectCurrentPage(DjiAccessibilityService.AGRAS_PACKAGE);
+            return new DjiAccessibilityService.ClickResult(false,
+                    "无法返回 Agras 地图页并打开设置；请先手动进入地图页后重试。当前页面：\n" + page);
+        }
         sleep(700);
         step = service.clickSafeExactText(DjiAccessibilityService.AGRAS_PACKAGE, "RTK");
         if (!step.success) return new DjiAccessibilityService.ClickResult(false, "未找到 RTK 设置入口：" + step.message);
         sleep(900);
+        return inspectAgrasRtkPage(service);
+    }
+
+    private DjiAccessibilityService.ClickResult inspectAgrasRtkPage(DjiAccessibilityService service) {
         String page = service.inspectCurrentPage(DjiAccessibilityService.AGRAS_PACKAGE);
         if (!page.startsWith("package=")) return new DjiAccessibilityService.ClickResult(false, page);
         return new DjiAccessibilityService.ClickResult(true, "已打开 RTK 设置页；请查看下方飞行器纬度/经度字段。\n" + page);
