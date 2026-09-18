@@ -118,6 +118,7 @@ public final class DjiAccessibilityService extends AccessibilityService {
 
     public ClickResult clickDescendantForExactText(String expectedPackage, String textResourceId,
                                                     String label, String targetResourceId) {
+        // 通过名称找到列表项，再在该项子树中定位箭头等目标控件，避免误点其他记录。
         if (isSensitive(label) || isSensitive(textResourceId) || isSensitive(targetResourceId)) {
             return blocked(label + " " + targetResourceId);
         }
@@ -213,6 +214,7 @@ public final class DjiAccessibilityService extends AccessibilityService {
     }
 
     public List<String> collectListTexts(String expectedPackage, String resourceId, String listResourceId) {
+        // 分页读取名称；到达末尾或连续没有新内容时停止，防止无限滚动。
         LinkedHashSet<String> values = new LinkedHashSet<>();
         int stagnantPages = 0;
         for (int page = 0; page < 80; page++) {

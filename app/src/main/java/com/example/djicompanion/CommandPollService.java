@@ -95,6 +95,7 @@ public final class  CommandPollService extends Service {
                     connection.disconnect(); sleep(3000); continue;
                 }
                 if (code != 200) throw new IllegalStateException("HTTP " + code);
+                // 服务端一次返回一条命令；读取后立即交给统一分发器执行并回执。
                 JSONObject command = new JSONObject(read(connection.getInputStream()));
                 connection.disconnect();
                 executeAndAck(base, token, command);
@@ -114,6 +115,7 @@ public final class  CommandPollService extends Service {
         String message;
         try {
             String targetPackage = resolvePackage(payload, type);
+            // 所有接口命令都在此处分发；每个分支只负责动作，末尾统一 ack。
             if ("OPEN_DJI".equals(type) || "OPEN_AGRAS".equals(type) || "OPEN_APP".equals(type)) {
                 success = launchDji(targetPackage);
                 message = success ? "已请求启动 " + DjiAccessibilityService.displayName(targetPackage)
@@ -140,6 +142,7 @@ public final class  CommandPollService extends Service {
                 success = result.success;
                 message = result.message;
             } else if ("PREPARE_AGRAS_JOB".equals(type)) {
+                // 作业链路：作业箭头 -> 处方图 -> 确定 -> 调用 -> 执行。
                 DjiAccessibilityService.ClickResult result = prepareAgrasJob(payload);
                 success = result.success;
                 message = result.message;
@@ -252,6 +255,7 @@ public final class  CommandPollService extends Service {
         sleep(600);
         service.clickSafeExactText(DjiAccessibilityService.AGRAS_PACKAGE, "本地");
         sleep(600);
+        // 先锁定作业名称，再点击同一行内的右侧 gotoIv 箭头。
         step = service.clickDescendantForExactText(DjiAccessibilityService.AGRAS_PACKAGE,
                 "com.dji.agrasx:id/itemNameTv", jobName, "com.dji.agrasx:id/gotoIv");
         if (!step.success) return new DjiAccessibilityService.ClickResult(false, "未找到作业：" + jobName);
@@ -259,18 +263,21 @@ public final class  CommandPollService extends Service {
                 "com.dji.agrasx:id/selectPrecisionRes", 8000);
         if (!step.success) return new DjiAccessibilityService.ClickResult(false,
                 "已点击作业，但未进入地图作业页面；请在遥控器确认该作业可打开");
+        // 地图页右上角按钮打开处方图选择面板。
         step = service.clickSafeResourceId(DjiAccessibilityService.AGRAS_PACKAGE,
                 "com.dji.agrasx:id/selectPrecisionRes");
         if (!step.success) return new DjiAccessibilityService.ClickResult(false, "无法打开处方图选择面板：" + step.message);
         step = service.waitForPage(DjiAccessibilityService.AGRAS_PACKAGE, "",
                 "com.dji.agrasx:id/precisionName", 5000);
         if (!step.success) return new DjiAccessibilityService.ClickResult(false, "处方图选择面板未加载完成");
+        // 精确匹配处方图名称，向上找到可点击的处方图卡片。
         step = service.clickListItemByExactText(DjiAccessibilityService.AGRAS_PACKAGE,
                 "com.dji.agrasx:id/precisionName", prescriptionName);
         if (!step.success) return new DjiAccessibilityService.ClickResult(false, "未找到已导入处方图：" + prescriptionName);
         step = service.waitForPage(DjiAccessibilityService.AGRAS_PACKAGE, "确定(R3)",
                 "com.dji.agrasx:id/textConfirm", 5000);
         if (!step.success) return new DjiAccessibilityService.ClickResult(false, "处方图确认弹窗未加载完成：" + step.message);
+        // 新版官方按钮带有实体按键提示，文字失败时再按资源 ID 兜底。
         step = service.clickSafeExactText(DjiAccessibilityService.AGRAS_PACKAGE, "确定(R3)");
         if (!step.success) {
             step = service.clickSafeResourceId(DjiAccessibilityService.AGRAS_PACKAGE,
@@ -278,6 +285,7 @@ public final class  CommandPollService extends Service {
         }
         if (!step.success) return new DjiAccessibilityService.ClickResult(false, "无法确认处方图选择：" + step.message);
         sleep(800);
+        // 某些版本确认后会出现“调用”，已自动调用的版本则直接进入“执行”。
         DjiAccessibilityService.ClickResult invoke = service.waitForPage(DjiAccessibilityService.AGRAS_PACKAGE,
                 "调用", "", 3000);
         if (invoke.success) {
@@ -285,6 +293,7 @@ public final class  CommandPollService extends Service {
             if (!invoke.success) return new DjiAccessibilityService.ClickResult(false, "无法点击右下角调用：" + invoke.message);
             sleep(1000);
         }
+        // 等待右下角执行按钮；官方置灰时点击会失败并回传原因。
         step = service.waitForPage(DjiAccessibilityService.AGRAS_PACKAGE, "执行",
                 "com.dji.agrasx:id/btnAction", 5000);
         if (!step.success) return new DjiAccessibilityService.ClickResult(false,
