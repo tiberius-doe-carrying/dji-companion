@@ -146,6 +146,10 @@ public final class  CommandPollService extends Service {
                 DjiAccessibilityService.ClickResult result = prepareAgrasJob(payload);
                 success = result.success;
                 message = result.message;
+            } else if ("READ_AGRAS_RTK_STATUS".equals(type)) {
+                DjiAccessibilityService.ClickResult result = readAgrasRtkStatus();
+                success = result.success;
+                message = result.message;
             } else if ("CLICK_TEXT".equals(type)) {
                 DjiAccessibilityService service = DjiAccessibilityService.instance();
                 if (service == null) throw new IllegalStateException("无障碍服务未启用");
@@ -189,6 +193,23 @@ public final class  CommandPollService extends Service {
         DjiAccessibilityService service = DjiAccessibilityService.instance();
         if (service == null) throw new IllegalStateException("无障碍服务未启用");
         return service;
+    }
+
+    /** 打开 Agras 的 RTK 设置页并返回当前无障碍树；具体经纬度是否出现取决于飞行器/RTK连接状态。 */
+    private DjiAccessibilityService.ClickResult readAgrasRtkStatus() {
+        DjiAccessibilityService service = requireAccessibility();
+        launchDji(DjiAccessibilityService.AGRAS_PACKAGE);
+        sleep(1200);
+        DjiAccessibilityService.ClickResult step = service.clickSafeResourceId(
+                DjiAccessibilityService.AGRAS_PACKAGE, "com.dji.agrasx:id/viewSettingImg");
+        if (!step.success) return new DjiAccessibilityService.ClickResult(false, "无法打开 Agras 设置页：" + step.message);
+        sleep(700);
+        step = service.clickSafeExactText(DjiAccessibilityService.AGRAS_PACKAGE, "RTK");
+        if (!step.success) return new DjiAccessibilityService.ClickResult(false, "未找到 RTK 设置入口：" + step.message);
+        sleep(900);
+        String page = service.inspectCurrentPage(DjiAccessibilityService.AGRAS_PACKAGE);
+        if (!page.startsWith("package=")) return new DjiAccessibilityService.ClickResult(false, page);
+        return new DjiAccessibilityService.ClickResult(true, "已打开 RTK 设置页；请查看下方飞行器纬度/经度字段。\n" + page);
     }
 
     private DjiAccessibilityService.ClickResult readAndReportAgrasInventory(String base, String token) throws Exception {
