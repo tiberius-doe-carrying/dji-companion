@@ -11,6 +11,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -18,6 +19,7 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
+import android.util.DisplayMetrics;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.EditText;
@@ -30,6 +32,8 @@ import android.widget.Toast;
 import java.io.File;
 
 public final class MainActivity extends Activity {
+    public static final String ACTION_REQUEST_SCREEN_CAPTURE = "com.example.djicompanion.REQUEST_SCREEN_CAPTURE";
+    private static final int REQUEST_SCREEN_CAPTURE = 4101;
     private static final int C_BG = Color.parseColor("#F0F4F8");
     private static final int C_SURFACE = Color.parseColor("#FFFFFF");
     private static final int C_SURFACE_MUTED = Color.parseColor("#F6F8FA");
@@ -57,6 +61,42 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(buildUi());
+        handleScreenCaptureRequest(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleScreenCaptureRequest(intent);
+    }
+
+    private void handleScreenCaptureRequest(Intent intent) {
+        if (intent == null || !ACTION_REQUEST_SCREEN_CAPTURE.equals(intent.getAction())) return;
+        intent.setAction(null);
+        MediaProjectionManager manager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_SCREEN_CAPTURE);
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_SCREEN_CAPTURE) return;
+        if (resultCode != RESULT_OK || data == null) {
+            toast("屏幕采集授权已取消");
+            return;
+        }
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+        Intent service = new Intent(this, ScreenCaptureService.class)
+                .setAction(ScreenCaptureService.ACTION_START)
+                .putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
+                .putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data)
+                .putExtra(ScreenCaptureService.EXTRA_WIDTH, metrics.widthPixels)
+                .putExtra(ScreenCaptureService.EXTRA_HEIGHT, metrics.heightPixels)
+                .putExtra(ScreenCaptureService.EXTRA_DENSITY, metrics.densityDpi);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(service); else startService(service);
+        toast("屏幕采集已授权，将返回 DJI Agras");
+        Intent agras = getPackageManager().getLaunchIntentForPackage("com.dji.agrasx");
+        if (agras != null) { agras.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(agras); }
     }
 
     @Override protected void onResume() {

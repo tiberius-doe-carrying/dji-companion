@@ -150,6 +150,25 @@ public final class  CommandPollService extends Service {
                 DjiAccessibilityService.ClickResult result = readAgrasRtkStatus();
                 success = result.success;
                 message = result.message;
+            } else if ("START_SCREEN_CAPTURE".equals(type)) {
+                if (ScreenCaptureService.isReady()) {
+                    success = true;
+                    message = "屏幕采集已经授权，无需重复开启";
+                } else {
+                    Intent request = new Intent(this, MainActivity.class)
+                            .setAction(MainActivity.ACTION_REQUEST_SCREEN_CAPTURE)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    startActivity(request);
+                    success = true;
+                    message = "已在遥控器打开系统屏幕采集授权，请人工确认";
+                }
+            } else if ("CAPTURE_SCREEN".equals(type)) {
+                success = ScreenCaptureService.requestScreenshot();
+                message = success ? "已请求采集并上传最新屏幕画面" : "屏幕采集尚未授权，请先开始采集并在遥控器确认";
+            } else if ("STOP_SCREEN_CAPTURE".equals(type)) {
+                ScreenCaptureService.stopCapture(this);
+                success = true;
+                message = "屏幕采集已停止";
             } else if ("CLICK_TEXT".equals(type)) {
                 DjiAccessibilityService service = DjiAccessibilityService.instance();
                 if (service == null) throw new IllegalStateException("无障碍服务未启用");
